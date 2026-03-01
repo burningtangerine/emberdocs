@@ -1,0 +1,5 @@
+.mintignore
+.env.local
+.env.docker.secrets
+.lefthookrc
+lefthook.yml

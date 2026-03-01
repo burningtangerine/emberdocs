@@ -5,3 +5,9 @@
 # Draft content
 drafts/
 *.draft.mdx
+.gitignore
+mise.toml
+.env.docker.local
+.env.local
+.lefthookrc
+lefthook.yml

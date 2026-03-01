@@ -1,0 +1,130 @@
+# Ember Docs - mise configuration
+#
+# Usage:
+#   mise trust              # First time only - trust this config
+#   mise run dev            # Start development (fetches secrets + validates + runs)
+#
+# Personal overrides:
+#   Create .mise.local.toml (gitignored) to override settings:
+#   [env]
+#   DOPPLER_CONFIG = "dev_local"  # Use your personal Doppler config
+#
+# Environment files (for future agents):
+# =============================================================================
+# Tools - Version management (used by CI via jdx/mise-action)
+# =============================================================================
+[tools]
+gh = "latest"
+ggshield = "latest"
+graphite = "latest"
+node = "24"
+pnpm = "10.28.0"
+trufflehog = "latest"
+doppler = "latest"
+ast-grep = "latest"
+biome = "2.3.10"
+cloudflared = "latest"
+flyctl = "latest"
+github-cli = "latest"
+lefthook = "latest"
+pipx = "latest"
+wrangler = "latest"
+sentry-cli = "latest"
+"aqua:dolthub/dolt" = "latest"
+
+[env]
+DOPPLER_PROJECT = "ember"
+DOPPLER_CONFIG = "dev"
+COMPOSE_PROJECT_NAME = "ember"
+
+# =============================================================================
+# Tasks
+# =============================================================================
+
+[tasks.secrets]
+description = "Fetch secrets from Doppler and generate .env.docker.secrets"
+run = '''
+#!/usr/bin/env bash
+set -e
+
+# Check doppler CLI is installed
+if ! command -v doppler &>/dev/null; then
+  echo "ERROR: doppler CLI not found"
+  echo ""
+  echo "Install: curl -Ls https://cli.doppler.com/install.sh | sh"
+  echo "Then: doppler login"
+  exit 1
+fi
+
+echo "Fetching secrets from Doppler (${DOPPLER_PROJECT}/${DOPPLER_CONFIG})..."
+
+# Write to temp file first to avoid corrupting env file on failure
+# Stderr goes to console, stdout (secrets) goes to temp file
+TMPFILE=".env.docker.secrets.tmp"
+if ! doppler secrets download --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --format env --no-file > "$TMPFILE"; then
+  echo "ERROR: Failed to fetch secrets from Doppler"
+  rm -f "$TMPFILE"  # Don't cat - may contain partial secrets
+  echo ""
+  echo "Troubleshooting:"
+  echo "  1. Login: doppler login"
+  echo "  2. Verify access: doppler configs --project ${DOPPLER_PROJECT}"
+  exit 1
+fi
+
+# Only move to final location on success
+mv "$TMPFILE" .env.docker.secrets
+echo "Generated .env.docker.secrets ($(wc -l < .env.docker.secrets | tr -d ' ') vars)"
+'''
+
+[tasks.validate]
+description = "Validate required environment variables"
+depends = ["secrets"]
+run = '''
+{% raw %}
+#!/usr/bin/env bash
+set -e
+
+# Source the secrets file to get env vars
+# NOTE: .env.docker.secrets (from Doppler) contains ALL vars including PORT, AUTH_BYPASS_PHONE, etc.
+# The static .env.docker file is only used by pnpm dev:local (non-Doppler path) as a fallback.
+# This validation only needs .env.docker.secrets since mise run dev uses the Doppler workflow.
+if [[ -f .env.docker.secrets ]]; then
+  set -a
+  source .env.docker.secrets
+  set +a
+fi
+
+REQUIRED_VARS=(PORT DATABASE_URL E2E_BASE_URL E2E_IS_DEPLOYED E2E_TIMEOUT_ACTION E2E_TIMEOUT_NAVIGATION AUTH_BYPASS_PHONE)
+MISSING=()
+for var in "${REQUIRED_VARS[@]}"; do
+  if [[ -z "${!var:-}" ]]; then
+    MISSING+=("$var")
+  fi
+done
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  echo "Missing required vars: ${MISSING[*]}"
+  echo ""
+  echo "Check your Doppler config has these variables set."
+  exit 1
+fi
+echo "All required vars present"
+{% endraw %}
+'''
+
+[tasks.dev]
+description = "Start development environment"
+depends = ["validate"]
+run = "mint dev"
+
+[tasks.lint]
+description = "Run all linters"
+run = "pnpm lint"
+
+[tasks.format]
+description = "Format code with Biome"
+run = "pnpm format"
+
+[tasks.fix]
+description = "Auto-fix all fixable lint/format issues (Biome + stylelint)"
+run = "pnpm fix"
+
