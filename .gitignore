@@ -3,3 +3,4 @@
 .env.docker.secrets
 .lefthookrc
 lefthook.yml
+node_modules

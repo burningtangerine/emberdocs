@@ -11,3 +11,7 @@ mise.toml
 .env.local
 .lefthookrc
 lefthook.yml
+node_modules
+package.json
+pnpm-lock.yaml
+

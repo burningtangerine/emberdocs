@@ -31,7 +31,6 @@ pipx = "latest"
 wrangler = "latest"
 sentry-cli = "latest"
 "aqua:dolthub/dolt" = "latest"
-mint = "latest"
 
 [env]
 DOPPLER_PROJECT = "ember"
